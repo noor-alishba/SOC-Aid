@@ -1,105 +1,163 @@
-# SOC-Aid Analyst Guide
+# 🧑‍💻 SOC-Aid Analyst Guide
 
-> Evidence-aware AI assistant for Security Alert Triage
+> Practical guide for reviewing security-alert triage results produced by SOC-Aid.
 
 ## 1. Purpose
 
-SOC-Aid is an AI-assisted security alert triage system.
-It helps a SOC analyst understand security alerts, identify
-related activity, assess risk, organize evidence, and
-recommend investigation steps.
+SOC-Aid is designed to assist Security Operations Center (SOC) analysts during the initial triage of security alerts.
 
-SOC-Aid does NOT replace the human SOC analyst.
-The final security decision always remains with the human analyst.
+It helps organize:
 
-## 2. Analyst Workflow
+- 🔎 Alert information
+- 🔗 Related activity
+- 🔐 Authentication evidence
+- 📊 Risk assessment
+- 🤖 Evidence-aware AI analysis
+- 💡 Investigation recommendations
 
+SOC-Aid is an **analyst-assistance system**, not an autonomous security-response system.
+
+---
+
+## 2. SOC-Aid Triage Flow
+
+When an alert is submitted, SOC-Aid processes it through the following workflow:
+
+```text
 Security Alert
-    |
-    v
+      ↓
 Alert Parsing
-    |
-    v
-Alert Correlation
-    |
-    v
+      ↓
+Related Alert Correlation
+      ↓
+Evidence Extraction
+      ↓
 Risk Assessment
-    |
-    v
+      ↓
 Evidence-Aware AI Analysis
-    |
-    v
+      ↓
 Investigation Recommendation
-    |
-    v
-Human SOC Analyst
+      ↓
+Human SOC Analyst Review
+```
 
-## 3. Alert Input
+The analyst should review the final result together with the evidence that produced it.
 
-A security alert contains:
+---
+
+## 3. Reading a Triage Result
+
+A SOC-Aid triage result can contain the following major sections:
+
+```text
+Alert
+Parsed Alert
+Related Alerts
+Authentication Evidence
+Risk Assessment
+AI Analysis
+Recommendation
+Decision
+```
+
+Each section answers a different question.
+
+### 🔎 Alert
+
+**What happened?**
+
+Review the original alert details, including information such as:
 
 - Alert ID
 - Timestamp
 - User
 - Source IP
 - Event type
-- Message
 - Severity
+- Message
 
-## 4. Alert Parsing
+---
 
-SOC-Aid validates the required alert fields before analysis.
+### 🔍 Parsed Alert
 
-Required fields:
+**Did SOC-Aid successfully understand the alert?**
 
-- alert_id
-- timestamp
-- user
-- source_ip
-- event_type
-- message
-- severity
+The parsed alert represents the normalized form used by downstream workflow stages.
 
-Invalid or incomplete alerts are rejected with an error.
+If required fields are missing or invalid, the alert should be handled as an error rather than treated as reliable input.
 
-## 5. Alert Correlation
+---
 
-The current MVP searches for related alerts using:
+### 🔗 Related Alerts
 
-- Same user
-- Same source IP
+**What other activity is connected to this alert?**
 
-Example pattern:
+Review correlated events carefully.
 
-Failed login
-Failed login
-Failed login
-Successful login
+Correlation can provide important context such as repeated authentication attempts from the same user or source IP.
 
-If the events involve the same user or source IP, SOC-Aid
-can identify them as related activity.
+For example:
 
-## 6. Suspicious Authentication Pattern
+```text
+50 Failed Logins
+       ↓
+Successful Login
+       ↓
+Authentication Pattern
+       ↓
+Higher Risk
+```
 
-An important pattern in the current MVP is:
+The analyst should confirm that the correlated events actually belong to the same activity context.
 
-Failed Login + Successful Login + Same User or Source IP
+---
 
-This pattern can increase the rule-based risk assessment.
+## 4. Authentication Evidence
 
-However, this pattern alone does NOT prove:
+Authentication evidence is particularly important when investigating suspicious login activity.
 
-- Credential compromise
-- Attacker identity
-- Malicious IP ownership
-- Unauthorized access
-- Data exfiltration
+SOC-Aid can preserve:
 
-Additional evidence is required to establish those facts.
+- Failed-login count
+- First failed-login timestamp
+- Last failed-login timestamp
+- Time-window calculation
+- Pattern detection
 
-## 7. Risk Assessment
+### Verified Example
 
-Current severity base scores:
+The final SOC-Aid verification produced:
+
+```text
+Failed Logins : 50
+First Failure : 2026-08-19 10:20:00
+Last Failure  : 2026-08-19 10:28:10
+Time Window   : 8.17 minutes
+Pattern       : True
+```
+
+This means the workflow successfully preserved evidence from the correlated failed-login events.
+
+### Analyst Check
+
+Do not rely only on the number.
+
+Verify:
+
+1. The failed-login events are actually related.
+2. The user/context matches.
+3. The source IP/context is consistent where applicable.
+4. The first timestamp is the earliest relevant event.
+5. The last timestamp is the latest relevant event.
+6. The calculated time window is consistent with those timestamps.
+
+---
+
+## 5. Understanding Risk Assessment
+
+SOC-Aid uses a deterministic risk-assessment layer.
+
+Base severity scores are:
 
 | Severity | Base Score |
 |---|---:|
@@ -108,139 +166,290 @@ Current severity base scores:
 | HIGH | 60 |
 | CRITICAL | 90 |
 
-Risk levels:
+Additional contextual evidence can increase the score.
 
-| Score | Priority |
-|---|---|
-| 0-29 | LOW |
-| 30-59 | MEDIUM |
-| 60-79 | HIGH |
-| 80-100 | CRITICAL |
+The score is capped at:
 
-The final risk score is capped at 100.
+```text
+100
+```
 
-## 8. Priority Meaning
+Risk levels are interpreted as:
 
-### LOW
+| Score | Risk |
+|---:|---|
+| 0–29 | LOW |
+| 30–59 | MEDIUM |
+| 60–79 | HIGH |
+| 80–100 | CRITICAL |
 
-Limited evidence of suspicious activity.
+### Example
 
-Recommended action: monitor the activity and investigate
-if additional suspicious evidence appears.
+A suspicious authentication pattern with extensive correlated failed-login activity can produce:
 
-### MEDIUM
+```text
+Risk Level : CRITICAL
+Risk Score : 100
+```
 
-Some related or potentially unusual activity exists.
+The analyst should still review the underlying evidence rather than treating the score as an unquestionable conclusion.
 
-Recommended action: review related events and verify
-whether the activity was expected.
+---
 
-### HIGH
+## 6. Understanding AI Analysis
 
-The available evidence indicates elevated risk.
+🤖 The AI analysis is intended to **assist interpretation** of the evidence.
 
-Recommended action: prioritize human investigation.
-
-### CRITICAL
-
-The available evidence produces a very high risk assessment.
-
-Recommended action: escalate immediately for human SOC
-analyst investigation.
-
-## 9. Evidence-Aware AI Analysis
-
-The LLM receives:
-
-- Current alert
-- Related alerts
-- Rule-based risk assessment
-
-The LLM is instructed to use only the provided evidence.
+The analyst should distinguish between:
 
 ### FACT
 
-Information directly present in the evidence.
+Information directly supported by the alert or correlated evidence.
 
-Example: A successful login is recorded in the alert.
+Example:
+
+```text
+50 failed-login events were correlated.
+```
 
 ### INFERENCE
 
-A reasonable interpretation that is not directly proven.
+A reasonable interpretation based on available evidence.
 
-Example: The sequence may warrant additional investigation.
+Example:
+
+```text
+The authentication activity may indicate a suspicious login pattern.
+```
 
 ### UNKNOWN
 
 Information that cannot be established from the available evidence.
 
-Example: Whether credentials were compromised cannot be
-determined from the available evidence.
+Example:
 
-## 10. Unsupported Claims
+```text
+The available alerts do not establish whether the user's password was compromised.
+```
 
-SOC-Aid should not claim without evidence that:
+This distinction helps prevent unsupported assumptions.
 
-- An IP belongs to an attacker
-- Credentials were compromised
-- Malware spread
-- Lateral movement occurred
-- Data exfiltration occurred
-- MFA was bypassed
-- Privilege escalation occurred
+---
 
-## 11. Recommended Investigation
+## 7. Evidence-Aware Analysis
 
-SOC-Aid may recommend that the analyst:
+SOC-Aid is designed around the principle:
 
-- Review related authentication events
-- Verify whether the login was expected
-- Review activity after the login
-- Check internal network records
-- Examine alerts from the same timeframe
-- Verify available authentication controls
+> **Evidence before inference.**
 
-These are investigation suggestions, not confirmed facts.
+The AI should base its analysis on the information available in the workflow state.
 
-## 12. Human Oversight
+An analyst should be cautious if an AI statement cannot be connected to:
+
+- The original alert
+- Related alerts
+- Authentication evidence
+- Risk assessment
+- Other available workflow evidence
+
+If something is not supported by the available evidence, it should not be treated as an established fact.
+
+---
+
+## 8. Hallucination Safeguards
+
+SOC-Aid includes evidence-safety checks intended to reduce unsupported AI claims.
+
+The system is designed to avoid presenting unavailable information as confirmed information.
+
+### Analyst Rule
+
+If the AI says something important, ask:
+
+> **“What evidence in the alert or correlated activity supports this statement?”**
+
+If the evidence cannot be identified, treat the statement as uncertain and investigate further.
+
+---
+
+## 9. Investigation Recommendation
+
+The recommendation section tells the analyst what should be investigated next.
+
+For a high-risk authentication pattern, a recommendation may include:
+
+- 👤 Review the affected account
+- 💻 Review the affected endpoint
+- 🔐 Review authentication logs
+- 🔎 Investigate related activity
+- 🚨 Escalate for human investigation
+
+Recommendations are **investigation guidance**, not automatic response commands.
+
+---
+
+## 10. Human Decision
+
+The final decision remains with the SOC analyst.
+
+SOC-Aid explicitly preserves human oversight:
+
+```text
+Human SOC analyst approval required.
+```
+
+### 🚫 No Autonomous Blocking
 
 SOC-Aid does not automatically:
 
-- Block an IP
-- Disable an account
-- Delete files
-- Terminate systems
-- Perform destructive security actions
+- Disable accounts
+- Block IP addresses
+- Isolate endpoints
+- Delete resources
+- Execute irreversible security actions
 
-The system provides an assessment and recommendation.
-The human SOC analyst makes the final decision.
+The system provides evidence and recommendations so that a qualified analyst can make the final decision.
 
-## 13. Analyst Decision
+---
 
-After reviewing the SOC-Aid report, the analyst may:
+## 11. Invalid Alerts
 
-- Investigate further
-- Request additional evidence
-- Escalate the alert
-- Close the alert as benign
+SOC-Aid also handles invalid or incomplete alert input.
 
-SOC-Aid does not make this final decision automatically.
+Examples of problems include:
 
-## 14. Current MVP Limitations
+- Missing required fields
+- Unsupported severity
+- Malformed alert structure
 
-The current MVP uses a small sample alert dataset.
+The system should fail gracefully rather than silently producing a misleading triage result.
 
-It does not yet directly connect to:
+---
 
-- Production SIEM
-- Live threat intelligence
-- WHOIS services
-- Production endpoint security systems
-- Persistent incident databases
+## 12. Testing Evidence
 
-## 15. Safety Principle
+The project was tested against core functionality and reliability scenarios.
 
-No automated blocking.
-No unsupported claims.
-No invented evidence.
-Human analyst remains in control.
+The automated test suite reported:
+
+```text
+7 passed in 0.02s
+```
+
+The final evidence verification also confirmed:
+
+```text
+✓ Authentication evidence integrated
+✓ Timestamps preserved
+✓ Risk assessment verified
+✓ Human oversight preserved
+```
+
+These checks provide evidence that the core MVP workflow is functioning as intended.
+
+---
+
+## 13. Recommended Analyst Workflow
+
+When reviewing a SOC-Aid result, use this sequence:
+
+### Step 1 — Understand the Alert
+
+Read the original alert and identify:
+
+- What happened?
+- Who was affected?
+- When did it happen?
+- Where did it originate?
+- What event type was reported?
+
+### Step 2 — Review Correlation
+
+Check whether related alerts provide additional context.
+
+### Step 3 — Verify Evidence
+
+For authentication events, check the:
+
+- Count
+- First timestamp
+- Last timestamp
+- Time window
+- Pattern
+
+### Step 4 — Review Risk
+
+Understand why the alert received its risk score.
+
+### Step 5 — Evaluate AI Analysis
+
+Separate facts from inferences and unknown information.
+
+### Step 6 — Follow Investigation Recommendations
+
+Use the recommendation as a starting point for further investigation.
+
+### Step 7 — Make the Human Decision
+
+The SOC analyst determines the appropriate response.
+
+---
+
+## 14. Example: Suspicious Authentication Pattern
+
+Consider a successful login preceded by a large number of failed-login attempts.
+
+SOC-Aid may identify:
+
+```text
+Failed Logins : 50
+Time Window   : 8.17 minutes
+Pattern       : True
+Risk Level    : CRITICAL
+Risk Score    : 100
+```
+
+An appropriate analyst workflow would be:
+
+```text
+Repeated failures
+      ↓
+Verify correlation
+      ↓
+Confirm timestamps
+      ↓
+Review successful login
+      ↓
+Review account activity
+      ↓
+Review endpoint/authentication logs
+      ↓
+Determine whether escalation is required
+```
+
+The result should support investigation rather than automatically triggering a destructive response.
+
+---
+
+## 15. Analyst Safety Checklist
+
+Before making a security decision, confirm:
+
+- [ ] The original alert is valid.
+- [ ] Required alert fields are present.
+- [ ] Related alerts are actually relevant.
+- [ ] Authentication evidence is preserved.
+- [ ] Timestamps are consistent.
+- [ ] Risk level is understood.
+- [ ] AI statements are supported by evidence.
+- [ ] Unknown information is not treated as fact.
+- [ ] Recommended investigation steps have been considered.
+- [ ] A human SOC analyst makes the final security decision.
+
+---
+
+## 16. Key Principle
+
+> 🛡️ **SOC-Aid assists the analyst; it does not replace the analyst.**
+
+The purpose of the system is to make security-alert triage more structured, explainable, evidence-aware, and efficient while preserving human oversight over security decisions.
